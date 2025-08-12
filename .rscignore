@@ -1,5 +1,6 @@
 ^renv\.lock$
 ^renv/
 ^\.github/
-^README\.md$
-^\.git(ignore|attributes)$
+^rsconnect/
+^\.git/
+^\.Rproj\.user/
