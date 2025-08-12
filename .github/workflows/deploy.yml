@@ -1,3 +1,40 @@
+name: Deploy to shinyapps.io
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "app.R"
+      - "data/**"
+      - "DESCRIPTION"
+      - ".rsconnectignore"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: shinyapps-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install system libraries for rsconnect/curl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
       - name: Deploy to shinyapps.io
         env:
           SHINYAPPS_NAME:   ${{ secrets.SHINYAPPS_NAME }}
@@ -6,8 +43,9 @@
         run: |
           Rscript - <<'RS'
           repos <- "https://cloud.r-project.org"
-          if (!requireNamespace("rsconnect", quietly = TRUE))
+          if (!requireNamespace("rsconnect", quietly = TRUE)) {
             install.packages(c("curl","openssl","jsonlite","snowflakeauth","rsconnect"), repos = repos)
+          }
 
           rsconnect::setAccountInfo(
             name   = Sys.getenv("SHINYAPPS_NAME"),
@@ -15,11 +53,9 @@
             secret = Sys.getenv("SHINYAPPS_SECRET")
           )
 
-          # Déployer le dossier courant ; grâce à .rsconnectignore,
-          # renv.lock, renv/ et .github/ seront exclus du bundle.
           rsconnect::deployApp(
-            appDir      = ".",
-            appName     = "FeuxSaguenay2023",
+            appDir      = ".",                 # déploie tout le dossier (manifest auto)
+            appName     = "FeuxSaguenay2023",  # garde le même nom pour MAJ
             forceUpdate = TRUE,
             logLevel    = "normal"
           )
