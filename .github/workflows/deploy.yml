@@ -4,11 +4,9 @@ on:
   push:
     branches: [ main ]
     paths:
-      - app.R
-      - data/**
-      - DESCRIPTION
-      - .rsconnectignore
-      - .github/workflows/deploy.yml
+      - "app.R"
+      - "data/**"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 concurrency:
@@ -23,9 +21,9 @@ jobs:
       - name: Checkout (with LFS)
         uses: actions/checkout@v4
         with:
-          lfs: true
+            lfs: true
 
-      - name: Install system libraries for rsconnect/curl
+      - name: Install system libs (curl/ssl) for rsconnect
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev
@@ -35,10 +33,6 @@ jobs:
         with:
           use-public-rspm: true
 
-      # Optionnel mais utile si un ancien id rsconnect traîne dans le repo
-      - name: Clear stale rsconnect record (optional)
-        run: rm -rf rsconnect
-
       - name: Deploy to shinyapps.io
         env:
           SHINYAPPS_NAME:   ${{ secrets.SHINYAPPS_NAME }}
@@ -47,10 +41,9 @@ jobs:
         run: |
           Rscript - <<'RS'
           repos <- "https://cloud.r-project.org"
-          # Installer rsconnect et deps minimales (sur le runner GitHub uniquement)
-          pkgs <- c("curl","openssl","jsonlite","snowflakeauth","rsconnect")
-          for (p in pkgs) if (!requireNamespace(p, quietly = TRUE))
-            install.packages(p, repos = repos)
+          if (!requireNamespace("rsconnect", quietly = TRUE)) {
+            install.packages(c("curl","openssl","jsonlite","snowflakeauth","rsconnect"), repos = repos)
+          }
 
           rsconnect::setAccountInfo(
             name   = Sys.getenv("SHINYAPPS_NAME"),
@@ -60,27 +53,26 @@ jobs:
 
           deploy <- function() {
             rsconnect::deployApp(
-              appDir      = ".",
-              appName     = "FeuxSaguenay2023",
+              appDir   = ".",
+              # ⬇️ Force le bundle : SEULEMENT app.R + data/
+              appFiles = c("app.R", "data"),
+              appName  = "FeuxSaguenay2023",
               forceUpdate = TRUE,
               logLevel    = "normal"
             )
           }
 
-          # Si l’app a été supprimée/ recréée côté shinyapps, on oublie l’ancien enregistrement et on réessaie
           tryCatch(
             deploy(),
             error = function(e) {
               msg <- conditionMessage(e)
               if (grepl("applicationDeleted", msg, fixed = TRUE) ||
                   grepl("Failed to find existing application on server", msg)) {
-                message("Stale deployment record detected. Forgetting and retrying...")
+                message("Enregistrement local périmé. On l'oublie et on réessaie...")
                 suppressWarnings(
-                  rsconnect::forgetDeployment(
-                    appName = "FeuxSaguenay2023",
-                    account = Sys.getenv("SHINYAPPS_NAME"),
-                    server  = "shinyapps.io"
-                  )
+                  rsconnect::forgetDeployment(appName = "FeuxSaguenay2023",
+                                              account = Sys.getenv("SHINYAPPS_NAME"),
+                                              server  = "shinyapps.io")
                 )
                 deploy()
               } else {
