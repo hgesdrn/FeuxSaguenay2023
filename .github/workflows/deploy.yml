@@ -6,6 +6,7 @@ on:
     paths:
       - "app.R"
       - "data/**"
+      - "DESCRIPTION"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
@@ -21,8 +22,9 @@ jobs:
       - name: Checkout (with LFS)
         uses: actions/checkout@v4
         with:
-            lfs: true
+          lfs: true
 
+      # Pas strictement nécessaire pour le runner, mais léger et utile pour installer rsconnect
       - name: Install system libs (curl/ssl) for rsconnect
         run: |
           sudo apt-get update
@@ -51,12 +53,24 @@ jobs:
             secret = Sys.getenv("SHINYAPPS_SECRET")
           )
 
+          # 1) Vérifier les dépendances que rsconnect voit AVANT de déployer
+          deps <- rsconnect::appDependencies(
+            appDir   = ".",
+            appFiles = c("app.R", "data", "DESCRIPTION")
+          )
+          print(deps)
+
+          # Échec dur si shiny n'est pas listé (ça évite un déploiement bancal)
+          if (!any(deps$Package == "shiny")) {
+            stop("FATAL: 'shiny' n'a pas été détecté dans les dépendances. ",
+                 "Vérifie que 'library(shiny)' est bien dans app.R ou que DESCRIPTION le liste dans Imports.")
+          }
+
           deploy <- function() {
             rsconnect::deployApp(
-              appDir   = ".",
-              # ⬇️ Force le bundle : SEULEMENT app.R + data/
-              appFiles = c("app.R", "data"),
-              appName  = "FeuxSaguenay2023",
+              appDir      = ".",
+              appFiles    = c("app.R", "data", "DESCRIPTION"),  # <-- bundle minimal & propre
+              appName     = "FeuxSaguenay2023",
               forceUpdate = TRUE,
               logLevel    = "normal"
             )
