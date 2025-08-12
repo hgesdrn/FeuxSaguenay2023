@@ -5,7 +5,7 @@ Application **Shiny** pour l’affichage et l’exploration des polygones de feu
 [![Deploy to shinyapps.io](https://github.com/hgesdrn/FeuxSaguenay2023/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/hgesdrn/FeuxSaguenay2023/actions/workflows/deploy.yml)
 
 **Application en ligne :**  
-`https://hgesdrn.shinyapps.io/FeuxSaguenay2023/`  
+https://hgesdrn.shinyapps.io/FeuxSaguenay2023/  
 
 ---
 
