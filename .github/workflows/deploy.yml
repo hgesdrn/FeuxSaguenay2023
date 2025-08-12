@@ -54,8 +54,9 @@ jobs:
           )
 
           rsconnect::deployApp(
-            appDir      = ".",                 # déploie tout le dossier (manifest auto)
-            appName     = "FeuxSaguenay2023",  # garde le même nom pour MAJ
+            appDir      = ".",
+            appName     = "FeuxSaguenay2023",
+            appFiles    = c("app.R", "data", "DESCRIPTION"),
             forceUpdate = TRUE,
             logLevel    = "normal"
           )
