@@ -31,15 +31,27 @@ jobs:
         with:
           use-public-rspm: true
 
-      - name: Install rsconnect only
-        run: |
-          Rscript -e 'install.packages("rsconnect", repos = "https://cloud.r-project.org")'
-
-      - name: Deploy with rsconnect
+      # ⬇️ On installe et on déploie dans le MÊME Rscript (plus aucun "no package rsconnect")
+      - name: Deploy to shinyapps.io
         env:
           SHINYAPPS_NAME:   ${{ secrets.SHINYAPPS_NAME }}
           SHINYAPPS_TOKEN:  ${{ secrets.SHINYAPPS_TOKEN }}
           SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
         run: |
-          Rscript -e 'rsconnect::setAccountInfo(name=Sys.getenv("SHINYAPPS_NAME"), token=Sys.getenv("SHINYAPPS_TOKEN"), secret=Sys.getenv("SHINYAPPS_SECRET"))' \
-                  -e 'rsconnect::deployApp(appName="FeuxSaguenay2023", appFiles=c("app.R","data","renv.lock","renv/activate.R",".Rprofile"), logLevel="normal")'
+          Rscript - <<'RS'
+          repos <- "https://cloud.r-project.org"
+          if (!requireNamespace("rsconnect", quietly = TRUE))
+            install.packages("rsconnect", repos = repos)
+
+          rsconnect::setAccountInfo(
+            name   = Sys.getenv("SHINYAPPS_NAME"),
+            token  = Sys.getenv("SHINYAPPS_TOKEN"),
+            secret = Sys.getenv("SHINYAPPS_SECRET")
+          )
+
+          rsconnect::deployApp(
+            appName  = "FeuxSaguenay2023",
+            appFiles = c("app.R","data","renv.lock","renv/activate.R",".Rprofile"),
+            logLevel = "normal"
+          )
+          RS
