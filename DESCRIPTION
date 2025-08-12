@@ -1,0 +1,14 @@
+Package: FeuxSaguenay2023
+Type: Shiny
+Title: Feux 2023 Saguenay–Lac-Saint-Jean
+Version: 0.0.1
+Encoding: UTF-8
+Imports:
+    shiny,
+    leaflet,
+    sf,
+    dplyr,
+    qs,
+    readr,
+    ggplot2,
+    scales
