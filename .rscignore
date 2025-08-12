@@ -2,5 +2,4 @@
 ^renv/
 ^\.github/
 ^README\.md$
-^\.gitignore$
-^\.gitattributes$
+^\.git(ignore|attributes)$

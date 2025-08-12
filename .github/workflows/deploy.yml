@@ -57,7 +57,6 @@ jobs:
             appDir      = ".",
             appName     = "FeuxSaguenay2023",
             appFiles    = c("app.R", "data", "DESCRIPTION"),
-            forceUpdate = TRUE,
             logLevel    = "normal"
           )
           RS
