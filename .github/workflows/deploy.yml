@@ -45,4 +45,4 @@ jobs:
       - name: Deploy app to shinyapps.io
         run: |
           Rscript -e "rsconnect::setAccountInfo(name=Sys.getenv('SHINYAPPS_NAME'), token=Sys.getenv('SHINYAPPS_TOKEN'), secret=Sys.getenv('SHINYAPPS_SECRET'))"
-          Rscript -e "rsconnect::deployApp(appDir = '.', appName = 'feux_qc_shiny', forceUpdate = TRUE)"
+          Rscript -e "rsconnect::deployApp(appDir = '.', appName = 'FeuxSaguenay2023', forceUpdate = TRUE)"
