@@ -4,11 +4,11 @@ on:
   push:
     branches: [ main ]
     paths:
-      - "app.R"
-      - "data/**"
-      - "DESCRIPTION"
-      - ".rsconnectignore"
-      - ".github/workflows/deploy.yml"
+      - app.R
+      - data/**
+      - DESCRIPTION
+      - .rsconnectignore
+      - .github/workflows/deploy.yml
   workflow_dispatch:
 
 concurrency:
@@ -35,50 +35,57 @@ jobs:
         with:
           use-public-rspm: true
 
-    - name: Deploy to shinyapps.io
-      env:
-        SHINYAPPS_NAME:   ${{ secrets.SHINYAPPS_NAME }}
-        SHINYAPPS_TOKEN:  ${{ secrets.SHINYAPPS_TOKEN }}
-        SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
-      run: |
-        Rscript - <<'RS'
-        repos <- "https://cloud.r-project.org"
-        if (!requireNamespace("rsconnect", quietly = TRUE)) {
-          install.packages(c("curl","openssl","jsonlite","snowflakeauth","rsconnect"), repos = repos)
-        }
-        rsconnect::setAccountInfo(
-          name   = Sys.getenv("SHINYAPPS_NAME"),
-          token  = Sys.getenv("SHINYAPPS_TOKEN"),
-          secret = Sys.getenv("SHINYAPPS_SECRET")
-        )
+      # Optionnel mais utile si un ancien id rsconnect traîne dans le repo
+      - name: Clear stale rsconnect record (optional)
+        run: rm -rf rsconnect
 
-        deploy <- function() {
-          rsconnect::deployApp(
-            appDir      = ".",
-            appName     = "FeuxSaguenay2023",
-            forceUpdate = TRUE,
-            logLevel    = "normal"
+      - name: Deploy to shinyapps.io
+        env:
+          SHINYAPPS_NAME:   ${{ secrets.SHINYAPPS_NAME }}
+          SHINYAPPS_TOKEN:  ${{ secrets.SHINYAPPS_TOKEN }}
+          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+        run: |
+          Rscript - <<'RS'
+          repos <- "https://cloud.r-project.org"
+          # Installer rsconnect et deps minimales (sur le runner GitHub uniquement)
+          pkgs <- c("curl","openssl","jsonlite","snowflakeauth","rsconnect")
+          for (p in pkgs) if (!requireNamespace(p, quietly = TRUE))
+            install.packages(p, repos = repos)
+
+          rsconnect::setAccountInfo(
+            name   = Sys.getenv("SHINYAPPS_NAME"),
+            token  = Sys.getenv("SHINYAPPS_TOKEN"),
+            secret = Sys.getenv("SHINYAPPS_SECRET")
           )
-        }
 
-        tryCatch(
-          deploy(),
-          error = function(e) {
-            msg <- conditionMessage(e)
-            if (grepl("applicationDeleted", msg, fixed = TRUE) ||
-                grepl("Failed to find existing application on server", msg)) {
-              message("Stale deployment record detected. Forgetting and retrying...")
-              # Remove local record and deploy again
-              suppressWarnings(
-                rsconnect::forgetDeployment(appName = "FeuxSaguenay2023",
-                                            account = Sys.getenv("SHINYAPPS_NAME"),
-                                            server  = "shinyapps.io")
-              )
-              deploy()
-            } else {
-              stop(e)
-            }
+          deploy <- function() {
+            rsconnect::deployApp(
+              appDir      = ".",
+              appName     = "FeuxSaguenay2023",
+              forceUpdate = TRUE,
+              logLevel    = "normal"
+            )
           }
-        )
-        RS
 
+          # Si l’app a été supprimée/ recréée côté shinyapps, on oublie l’ancien enregistrement et on réessaie
+          tryCatch(
+            deploy(),
+            error = function(e) {
+              msg <- conditionMessage(e)
+              if (grepl("applicationDeleted", msg, fixed = TRUE) ||
+                  grepl("Failed to find existing application on server", msg)) {
+                message("Stale deployment record detected. Forgetting and retrying...")
+                suppressWarnings(
+                  rsconnect::forgetDeployment(
+                    appName = "FeuxSaguenay2023",
+                    account = Sys.getenv("SHINYAPPS_NAME"),
+                    server  = "shinyapps.io"
+                  )
+                )
+                deploy()
+              } else {
+                stop(e)
+              }
+            }
+          )
+          RS
