@@ -8,28 +8,69 @@ library(readr)
 library(ggplot2)
 library(scales)   # number(), pseudo_log_trans()
 
-# ===== Chemins =====
-sag_path  <- "data/REGION_SAG_WGS84.qs"
-feux_path <- "data/feux_2023_simpl.qs"
-csv_path  <- "data/feux_2023_table.csv"
+# ==============================
+# CONFIG: lecture depuis GitHub Raw (fallback local)
+# ==============================
+REMOTE_BASE <- "https://raw.githubusercontent.com/hgesdrn/FeuxSaguenay2023/main"  # branche: main
+USE_REMOTE  <- TRUE   # TRUE = tente GitHub d'abord; FALSE = tente local d'abord
 
-# ===== Helpers =====
+gh_url <- function(path_rel) paste0(REMOTE_BASE, "/", path_rel)
+
+load_qs_safely <- function(local_path, remote_rel = NULL, verbose = FALSE) {
+  try_remote <- function() {
+    if (is.null(remote_rel) || remote_rel == "" || !USE_REMOTE) return(NULL)
+    url <- gh_url(remote_rel)
+    tf  <- tempfile(fileext = ".qs")
+    ok  <- try(utils::download.file(url, tf, mode = "wb", quiet = TRUE), silent = TRUE)
+    if (inherits(ok, "try-error")) return(NULL)
+    tryCatch(qread(tf), error = function(e) NULL)
+  }
+  try_local <- function() {
+    if (!file.exists(local_path)) return(NULL)
+    tryCatch(qread(local_path), error = function(e) NULL)
+  }
+  out <- try_remote()
+  if (!is.null(out)) return(out)
+  try_local()
+}
+
+load_csv_safely <- function(local_path, remote_rel = NULL, verbose = FALSE) {
+  try_remote <- function() {
+    if (is.null(remote_rel) || remote_rel == "" || !USE_REMOTE) return(NULL)
+    url <- gh_url(remote_rel)
+    out <- try(readr::read_csv(url, show_col_types = FALSE), silent = TRUE)
+    if (inherits(out, "try-error")) return(NULL) else out
+  }
+  try_local <- function() {
+    if (!file.exists(local_path)) return(NULL)
+    tryCatch(readr::read_csv(local_path, show_col_types = FALSE), error = function(e) NULL)
+  }
+  out <- try_remote()
+  if (!is.null(out)) return(out)
+  try_local()
+}
+
+# ==============================
+# Chemins (dans le repo)
+# ==============================
+sag_rel  <- "data/REGION_SAG_WGS84.qs"
+feux_rel <- "data/feux_2023_simpl.qs"
+csv_rel  <- "data/feux_2023_table.csv"
+
+# ===== Helpers génériques =====
 canon_nofeu <- function(x) {
   x <- as.character(x)
   x <- trimws(gsub("\\s+", "", x))
   num <- suppressWarnings(as.numeric(x))
   ifelse(is.na(num), x, as.character(num))
 }
-
 sort_nofeu_numeric <- function(x) {
   x_chr <- as.character(x)
   x_num <- suppressWarnings(as.numeric(x_chr))
   ord <- order(is.na(x_num), x_num, x_chr, na.last = TRUE)
   unname(unique(x_chr[ord]))
 }
-
 expand_bbox <- function(bb, frac = 0.03) {
-  # bb est un vecteur nommé ("xmin","ymin","xmax","ymax")
   xmn <- as.numeric(bb["xmin"]); xmx <- as.numeric(bb["xmax"])
   ymn <- as.numeric(bb["ymin"]); ymx <- as.numeric(bb["ymax"])
   w <- xmx - xmn; h <- ymx - ymn
@@ -41,9 +82,9 @@ expand_bbox <- function(bb, frac = 0.03) {
 }
 
 # ===== Chargement =====
-sag  <- tryCatch(qread(sag_path),  error = function(e) NULL)
-feux <- tryCatch(qread(feux_path), error = function(e) NULL)
-ftab <- tryCatch(read_csv(csv_path, show_col_types = FALSE), error = function(e) NULL)
+sag  <- load_qs_safely(local_path = "data/REGION_SAG_WGS84.qs", remote_rel = sag_rel)
+feux <- load_qs_safely(local_path = "data/feux_2023_simpl.qs", remote_rel = feux_rel)
+ftab <- load_csv_safely(local_path = "data/feux_2023_table.csv", remote_rel = csv_rel)
 
 if (!is.null(feux)) {
   feux <- feux |>
@@ -61,7 +102,7 @@ if (!is.null(ftab)) {
     )
 }
 
-# ===== Choix (intersection) =====
+# ===== Choix (intersection pour garantir la présence de géométrie) =====
 choices_nofeu <- if (!is.null(feux) && !is.null(ftab)) {
   sort_nofeu_numeric(intersect(unique(feux$NOFEU), unique(ftab$NOFEU)))
 } else character(0)
@@ -69,7 +110,7 @@ choices_nofeu <- if (!is.null(feux) && !is.null(ftab)) {
 # ===== Axe Y =====
 y_trans  <- pseudo_log_trans(base = 10, sigma = 10)
 y_limits <- c(0, 100000)
-y_breaks <- c(0, 1, 10, 100, 1000, 10000, 100000)
+y_breaks <- c(0, 10, 100, 1000, 10000, 100000)
 
 # ===============================
 # UI
@@ -96,6 +137,7 @@ ui <- fluidPage(
       height: 700px;
       overflow-y: auto;
     }
+    /* Tooltips sombres */
     .leaflet-tooltip.lbl-dark{
       background-color: rgba(20,20,20,0.92);
       color: #f1f1f1;
@@ -115,7 +157,7 @@ ui <- fluidPage(
       box-shadow: 0 0 0 2px rgba(255,153,0,0.15), 0 2px 6px rgba(0,0,0,0.35);
     }
   ")),
-  div("FEUX 2023 — SAGUENAY–LAC-SAINT-JEAN", class = "header-title"),
+  div("LES FEUX DE FORÊT AU SAGUENAY–LAC-SAINT-JEAN DE 2023", class = "header-title"),
   fluidRow(
     column(3,
            div(class = "box-style",
@@ -124,7 +166,7 @@ ui <- fluidPage(
                  choices  = c("", choices_nofeu),
                  selected = ""
                ),
-               sliderInput("alpha_feux", "Transparence des feux",
+               sliderInput("alpha_feux", "Bouger le curseur pour ajuster la transparence des feux",
                            min = 0, max = 100, value = 75, step = 5, post = " %"),
                tags$hr(style = "border-top: 1px solid #aaa; margin-top: 20px; margin-bottom: 20px;"),
                htmlOutput("info_text", height = "60px"),
@@ -163,7 +205,7 @@ server <- function(input, output, session) {
       fitBounds(-74.5, 48, -69, 53) |>
       addLayersControl(
         baseGroups    = unname(c("Imagerie","Fond neutre")),
-        overlayGroups = unname(c("Région", "Feux (tous)", "Feu sélectionné")),
+        overlayGroups = unname(c("Feux (tous)", "Feu sélectionné")),
         options = layersControlOptions(collapsed = FALSE)
       ) |>
       addScaleBar(position = "bottomleft")
@@ -247,8 +289,8 @@ server <- function(input, output, session) {
     leafletProxy("map") |>
       addPolygons(
         data        = dat,
-        fillColor   = "#990000",
-        fillOpacity = opa_sel,
+        #fillColor   = "#990000",
+        #fillOpacity = opa_sel,
         color       = "#ff9900",
         weight      = 1,
         opacity     = 1,
@@ -283,8 +325,8 @@ server <- function(input, output, session) {
     leafletProxy("map") |>
       addPolygons(
         data        = dat,
-        fillColor   = "#990000",
-        fillOpacity = opa_sel,
+        # fillColor   = "#990000",
+        # fillOpacity = opa_sel,
         color       = "#ff9900",
         weight      = 1,
         opacity     = 1,
@@ -348,8 +390,11 @@ server <- function(input, output, session) {
       pdat$SUP_HA <- suppressWarnings(as.numeric(pdat$SUP_HA))
     }
     
+    tick_size  <- 12
+    label_size <- tick_size + 2
+    
     ggplot(pdat, aes(x = NOFEU, y = SUP_HA)) +
-      geom_col(fill = "#990000") +
+      geom_col(fill = "#990000", alpha = 0.6, width = 0.75) +
       labs(x = "Numéro de feu", y = "Superficie (ha)") +
       scale_y_continuous(
         trans  = y_trans,
@@ -358,9 +403,16 @@ server <- function(input, output, session) {
         oob    = scales::oob_squish
       ) +
       coord_cartesian(ylim = y_limits) +
-      theme_minimal(base_size = 12) +
-      theme(panel.grid.minor = element_blank())
+      theme_minimal() +
+      theme(
+        panel.grid.minor = element_blank(),
+        axis.text.x  = element_text(size = tick_size,  face = "bold"),
+        axis.text.y  = element_text(size = tick_size,  face = "bold"),
+        axis.title.x = element_text(size = label_size, face = "bold"),
+        axis.title.y = element_text(size = label_size, face = "bold")
+      )
   })
+  
 }
 
 shinyApp(ui, server)
