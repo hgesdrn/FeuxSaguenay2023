@@ -171,7 +171,7 @@ ui <- fluidPage(
                tags$hr(style = "border-top: 1px solid #aaa; margin-top: 20px; margin-bottom: 20px;"),
                htmlOutput("info_text", height = "60px"),
                tags$hr(style = "border-top: 1px solid #aaa; margin-top: 20px; margin-bottom: 20px;"),
-               plotOutput("barplot", height = "300px")
+               plotOutput("barplot", height = "275px")
            )
     ),
     column(9,
