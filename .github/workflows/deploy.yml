@@ -8,7 +8,6 @@ on:
       - "data/**"
       - "renv.lock"
       - "renv/activate.R"
-      - ".Rprofile"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
@@ -18,7 +17,6 @@ concurrency:
 
 jobs:
   deploy:
-    # TIP: pin to 22.04 to get more prebuilt binaries.
     runs-on: ubuntu-22.04
 
     steps:
@@ -30,8 +28,7 @@ jobs:
       - name: Install system libraries for rsconnect/curl
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libcurl4-openssl-dev libssl-dev
+          sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
@@ -46,10 +43,8 @@ jobs:
         run: |
           Rscript - <<'RS'
           repos <- "https://cloud.r-project.org"
-          # install deps explicitly to avoid partial failures
-          for (pkg in c("curl","openssl","jsonlite","snowflakeauth","rsconnect")) {
-            if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg, repos = repos)
-          }
+          if (!requireNamespace("rsconnect", quietly = TRUE))
+            install.packages(c("curl","openssl","jsonlite","snowflakeauth","rsconnect"), repos = repos)
 
           rsconnect::setAccountInfo(
             name   = Sys.getenv("SHINYAPPS_NAME"),
@@ -58,8 +53,9 @@ jobs:
           )
 
           rsconnect::deployApp(
-            appName  = "FeuxSaguenay2023",
-            appFiles = c("app.R","data","renv.lock","renv/activate.R",".Rprofile"),
-            logLevel = "normal"
+            appName   = "FeuxSaguenay2023",  # garde le même nom pour mettre à jour l'app existante
+            appFiles  = c("app.R","data","renv.lock","renv/activate.R"),
+            logLevel  = "normal",
+            forceUpdate = TRUE               # <-- clé pour MAJ l'app existante
           )
           RS
