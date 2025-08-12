@@ -1,4 +1,3 @@
-# .github/workflows/deploy.yml
 name: Deploy to shinyapps.io
 
 on:
@@ -51,10 +50,12 @@ jobs:
             secret = Sys.getenv("SHINYAPPS_SECRET")
           )
 
+          # Important: déployer le répertoire (pas de appFiles),
+          # rsconnect va créer un manifest.json avec les deps trouvées dans app.R
           rsconnect::deployApp(
-            appName    = "FeuxSaguenay2023",
-            appFiles   = c("app.R","data"),
-            logLevel   = "normal",
-            forceUpdate = TRUE
+            appDir      = ".",
+            appName     = "FeuxSaguenay2023",
+            forceUpdate = TRUE,
+            logLevel    = "normal"
           )
           RS
