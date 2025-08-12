@@ -1,3 +1,4 @@
+# .github/workflows/deploy.yml
 name: Deploy to shinyapps.io
 
 on:
@@ -6,8 +7,6 @@ on:
     paths:
       - "app.R"
       - "data/**"
-      - "renv.lock"
-      - "renv/activate.R"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
@@ -53,9 +52,9 @@ jobs:
           )
 
           rsconnect::deployApp(
-            appName   = "FeuxSaguenay2023",  # garde le même nom pour mettre à jour l'app existante
-            appFiles  = c("app.R","data","renv.lock","renv/activate.R"),
-            logLevel  = "normal",
-            forceUpdate = TRUE               # <-- clé pour MAJ l'app existante
+            appName    = "FeuxSaguenay2023",
+            appFiles   = c("app.R","data"),
+            logLevel   = "normal",
+            forceUpdate = TRUE
           )
           RS
