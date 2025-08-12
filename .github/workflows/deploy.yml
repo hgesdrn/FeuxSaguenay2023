@@ -35,28 +35,50 @@ jobs:
         with:
           use-public-rspm: true
 
-      - name: Deploy to shinyapps.io
-        env:
-          SHINYAPPS_NAME:   ${{ secrets.SHINYAPPS_NAME }}
-          SHINYAPPS_TOKEN:  ${{ secrets.SHINYAPPS_TOKEN }}
-          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
-        run: |
-          Rscript - <<'RS'
-          repos <- "https://cloud.r-project.org"
-          if (!requireNamespace("rsconnect", quietly = TRUE)) {
-            install.packages(c("curl","openssl","jsonlite","snowflakeauth","rsconnect"), repos = repos)
-          }
+    - name: Deploy to shinyapps.io
+      env:
+        SHINYAPPS_NAME:   ${{ secrets.SHINYAPPS_NAME }}
+        SHINYAPPS_TOKEN:  ${{ secrets.SHINYAPPS_TOKEN }}
+        SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+      run: |
+        Rscript - <<'RS'
+        repos <- "https://cloud.r-project.org"
+        if (!requireNamespace("rsconnect", quietly = TRUE)) {
+          install.packages(c("curl","openssl","jsonlite","snowflakeauth","rsconnect"), repos = repos)
+        }
+        rsconnect::setAccountInfo(
+          name   = Sys.getenv("SHINYAPPS_NAME"),
+          token  = Sys.getenv("SHINYAPPS_TOKEN"),
+          secret = Sys.getenv("SHINYAPPS_SECRET")
+        )
 
-          rsconnect::setAccountInfo(
-            name   = Sys.getenv("SHINYAPPS_NAME"),
-            token  = Sys.getenv("SHINYAPPS_TOKEN"),
-            secret = Sys.getenv("SHINYAPPS_SECRET")
-          )
-
+        deploy <- function() {
           rsconnect::deployApp(
             appDir      = ".",
             appName     = "FeuxSaguenay2023",
-            appFiles    = c("app.R", "data", "DESCRIPTION"),
+            forceUpdate = TRUE,
             logLevel    = "normal"
           )
-          RS
+        }
+
+        tryCatch(
+          deploy(),
+          error = function(e) {
+            msg <- conditionMessage(e)
+            if (grepl("applicationDeleted", msg, fixed = TRUE) ||
+                grepl("Failed to find existing application on server", msg)) {
+              message("Stale deployment record detected. Forgetting and retrying...")
+              # Remove local record and deploy again
+              suppressWarnings(
+                rsconnect::forgetDeployment(appName = "FeuxSaguenay2023",
+                                            account = Sys.getenv("SHINYAPPS_NAME"),
+                                            server  = "shinyapps.io")
+              )
+              deploy()
+            } else {
+              stop(e)
+            }
+          }
+        )
+        RS
+
